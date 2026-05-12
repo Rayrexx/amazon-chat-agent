@@ -1,0 +1,27 @@
+[project]
+name = "amazon-chat-agent"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "google-genai>=1.57.0",
+    "groq>=1.0.0",
+    "ipykernel>=7.1.0",
+    "numpy>=2.4.0",
+    "openai>=2.15.0",
+    "pandas>=2.3.3",
+    "pydantic>=2.12.5",
+    "pydantic-settings>=2.12.0",
+    "python-dotenv>=1.2.1",
+    "streamlit>=1.52.2",
+]
+
+[tool.uv.workspace]
+members = ["apps/api", "apps/chatbot_ui"]
+
+[dependency-groups]
+dev = [
+    "matplotlib>=3.10.9",
+    "qdrant-client>=1.17.1",
+]
