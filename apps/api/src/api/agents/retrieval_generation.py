@@ -1,15 +1,35 @@
 import openai
 from qdrant_client import QdrantClient
+from langsmith import traceable, get_current_run_tree
 
 
+@traceable(
+    name="embed_query",
+    run_type="embedding",
+    metadata={"ls_provider": "openai", "ls_model": "text-embedding-3-small"}
+)
 def get_embedding(text, model="text-embedding-3-small"):
     response = openai.embeddings.create(
         input=text,
         model=model,
     )
+
+    current_run = get_current_run_tree()
+    try:
+        if current_run:
+            current_run.metadata["usage_metadata"] = {
+                "input_tokens": response.usage.prompt_tokens,
+                "total_tokens": response.usage.total_tokens
+            }
+    except Exception as e:
+        print("LangSmith metadata error:", e)
     return response.data[0].embedding
 
 
+@traceable(
+    name="retrieve_data",
+    run_type="retriever",
+)
 def retrieve_data(query, qdrant_client, top_k=5):
     query_embedding = get_embedding(query)
     search_result = qdrant_client.query_points(
@@ -35,6 +55,10 @@ def retrieve_data(query, qdrant_client, top_k=5):
     }
 
 
+@traceable(
+    name="format_retrieved_context",
+    run_type="prompt"
+)
 def process_context(context):
     formatted_context = ""
     for id, chunk, rating in zip(context["retrieved_context_ids"], context["retreived_context"], context["retreived_context_ratings"]):
@@ -43,6 +67,10 @@ def process_context(context):
     return formatted_context
 
 
+@traceable(
+    name="build_prompt",
+    run_type="prompt"
+)
 def build_prompt(preprocessed_context, question):
     prompt = f"""
 you are a shopping assistant that can answer questions about products in stock.
@@ -61,6 +89,12 @@ Question: {question}
     return prompt
 
 
+@traceable(
+    name="generate_answer",
+    run_type="llm",
+    metadata={"ls_provider": "openai", "ls_model": "gpt-5-nano"}
+
+)
 def generate_answer(prompt):
     response = openai.chat.completions.create(
         model="gpt-5-nano",
@@ -71,9 +105,24 @@ def generate_answer(prompt):
         # temperature=0.7,
         # max_tokens=500,
     )
+
+    current_run = get_current_run_tree()
+    try:
+        if current_run:
+            current_run.metadata["usage_metadata"] = {
+                "input_tokens": response.usage.prompt_tokens,
+                "output_tokens": response.usage.completion_tokens,
+                "total_tokens": response.usage.total_tokens
+            }
+
+    except Exception as e:
+        print("LangSmith metadata error:", e)
     return response.choices[0].message.content
 
 
+@traceable(
+    name="rag_pipeline",
+)
 def rag_pipeline(question, top_k=5):
     qdrant_client = QdrantClient(
         url="http://qdrant:6333")
@@ -81,4 +130,12 @@ def rag_pipeline(question, top_k=5):
     preprocessed_context = process_context(retrieved_context)
     prompt = build_prompt(preprocessed_context, question)
     answer = generate_answer(prompt)
-    return answer
+    final_result = {
+        "answer": answer,
+        "question": question,
+        "retrieved_context": retrieved_context,
+        "retrieved_context_ids": retrieved_context["retrieved_context_ids"],
+        "similarity_scores": retrieved_context["similarity_scores"],
+    }
+
+    return final_result
