@@ -6,7 +6,8 @@ from langsmith import traceable, get_current_run_tree
 @traceable(
     name="embed_query",
     run_type="embedding",
-    metadata={"ls_provider": "openai", "ls_model": "text-embedding-3-small"}
+    metadata={"ls_provider": "openai",
+              "ls_model_name": "text-embedding-3-small"}
 )
 def get_embedding(text, model="text-embedding-3-small"):
     response = openai.embeddings.create(
@@ -39,19 +40,19 @@ def retrieve_data(query, qdrant_client, top_k=5):
     )
 
     retrieved_context_ids = []
-    retreived_context = []
+    retrieved_context = []
     similarity_scores = []
-    retreived_context_ratings = []
+    retrieved_context_ratings = []
     for point in search_result.points:
         retrieved_context_ids.append(point.payload["parent_asin"])
-        retreived_context.append(point.payload["description"])
+        retrieved_context.append(point.payload["description"])
         similarity_scores.append(point.score)
-        retreived_context_ratings.append(point.payload["average_rating"])
+        retrieved_context_ratings.append(point.payload["average_rating"])
     return {
         "retrieved_context_ids": retrieved_context_ids,
-        "retreived_context": retreived_context,
+        "retrieved_context": retrieved_context,
         "similarity_scores": similarity_scores,
-        "retreived_context_ratings": retreived_context_ratings
+        "retrieved_context_ratings": retrieved_context_ratings
     }
 
 
@@ -61,7 +62,7 @@ def retrieve_data(query, qdrant_client, top_k=5):
 )
 def process_context(context):
     formatted_context = ""
-    for id, chunk, rating in zip(context["retrieved_context_ids"], context["retreived_context"], context["retreived_context_ratings"]):
+    for id, chunk, rating in zip(context["retrieved_context_ids"], context["retrieved_context"], context["retrieved_context_ratings"]):
         formatted_context += f"-ID: {id}, Rating: {rating}, Description: {chunk}\n"
 
     return formatted_context
@@ -92,7 +93,7 @@ Question: {question}
 @traceable(
     name="generate_answer",
     run_type="llm",
-    metadata={"ls_provider": "openai", "ls_model": "gpt-5-nano"}
+    metadata={"ls_provider": "openai", "ls_model_name": "gpt-5-nano"}
 
 )
 def generate_answer(prompt):
@@ -123,9 +124,8 @@ def generate_answer(prompt):
 @traceable(
     name="rag_pipeline",
 )
-def rag_pipeline(question, top_k=5):
-    qdrant_client = QdrantClient(
-        url="http://qdrant:6333")
+def rag_pipeline(question, qdrant_client, top_k=5):
+
     retrieved_context = retrieve_data(question, qdrant_client, top_k)
     preprocessed_context = process_context(retrieved_context)
     prompt = build_prompt(preprocessed_context, question)
@@ -133,7 +133,7 @@ def rag_pipeline(question, top_k=5):
     final_result = {
         "answer": answer,
         "question": question,
-        "retrieved_context": retrieved_context,
+        "retrieved_context": retrieved_context["retrieved_context"],
         "retrieved_context_ids": retrieved_context["retrieved_context_ids"],
         "similarity_scores": retrieved_context["similarity_scores"],
     }

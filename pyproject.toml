@@ -22,7 +22,9 @@ members = ["apps/api", "apps/chatbot_ui"]
 
 [dependency-groups]
 dev = [
+    "langgraph>=1.2.0",
     "langsmith>=0.8.5",
     "matplotlib>=3.10.9",
     "qdrant-client>=1.17.1",
+    "ragas>=0.4.3",
 ]
