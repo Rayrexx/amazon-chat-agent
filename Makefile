@@ -7,4 +7,4 @@ clean-notebook-outputs:
 
 run-evals-retriever:
 	uv sync
-	uv run --env-file .env python -c "import sys; sys.path.extend(['apps/api','apps/api/src']); exec(open('apps/api/evals/eval_retriever.py').read())"
+	PYTHONPATH=${PWD}/apps/api:${PWD}/apps/api/src:$$PYTHONPATH:${PWD} uv run --env-file .env python -m evals.eval_retriever

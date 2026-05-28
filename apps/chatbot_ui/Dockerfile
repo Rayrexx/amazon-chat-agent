@@ -2,64 +2,49 @@ FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim
 
 WORKDIR /app
 
-# -----------------------------
-# uv + python settings
-# -----------------------------
+# Copy workspace root files for dependency resolution
+COPY pyproject.toml uv.lock ./
+
+# Copy package files and source
+COPY apps/chatbot_ui ./apps/chatbot_ui
+
 ENV UV_COMPILE_BYTECODE=1
 ENV UV_HTTP_TIMEOUT=120
 ENV UV_HTTP_RETRIES=5
 
+# Install dependencies including workspace packages
+RUN uv sync --frozen --no-dev --package chatbot-ui
+
+# Enable bytecode compilation and Python optimization
 ENV PYTHONOPTIMIZE=1
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 
-# -----------------------------
-# Copy dependency metadata FIRST
-# (important for Docker cache)
-# -----------------------------
-COPY pyproject.toml uv.lock ./
-COPY apps/chatbot_ui/pyproject.toml ./apps/chatbot_ui/
-COPY apps/chatbot_ui/README.md ./apps/chatbot_ui/
-
-# -----------------------------
-# Install dependencies
-# -----------------------------
-RUN uv sync --frozen --no-dev --package chatbot-ui
-
-# -----------------------------
-# Copy actual source code
-# -----------------------------
-COPY --chown=app:app apps/chatbot_ui ./apps/chatbot_ui
-
-# -----------------------------
-# Python paths
-# -----------------------------
+# Set PATH to use the virtual environment
 ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONPATH="/app/apps/chatbot_ui/src:$PYTHONPATH"
 
-# -----------------------------
-# Create non-root user
-# -----------------------------
+# Create non-root user and set permissions
 RUN addgroup --system app && \
-    adduser --system --ingroup app --home /home/app app && \
+    adduser --system --ingroup app app && \
+    chown -R app:app /app && \
+    mkdir -p /home/app && \
+    chown -R app:app /home/app && \
+    mkdir -p /home/app/.streamlit && \
     mkdir -p /home/app/.streamlit/data && \
-    mkdir -p /home/app/.streamlit/cache
+    mkdir -p /home/app/.streamlit/cache && \
+    chown -R app:app /home/app/.streamlit
 
+# Set home directory for the user
 ENV HOME=/home/app
 
-# -----------------------------
-# Switch user
-# -----------------------------
+# Switch to non-root user
 USER app
 
-# -----------------------------
-# Expose Streamlit port
-# -----------------------------
+# Expose the Streamlit port
 EXPOSE 8501
 
 WORKDIR /app/apps/chatbot_ui/src
 
-# -----------------------------
-# Run Streamlit
-# -----------------------------
+# Command to run the application
 CMD ["streamlit", "run", "chatbot_ui/app.py", "--server.address=0.0.0.0"]
