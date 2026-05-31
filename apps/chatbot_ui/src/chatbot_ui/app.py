@@ -3,6 +3,10 @@ import requests
 from chatbot_ui.core.config import config
 
 
+st.set_page_config(page_title="Amazon Chat Agent",
+                   layout="wide", initial_sidebar_state="expanded")
+
+
 def api_call(method, url, **kwargs):
 
     def _show_error_popup(message):
@@ -46,6 +50,26 @@ for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
+if "used_context" not in st.session_state:
+    st.session_state.used_context = []
+
+
+with st.sidebar:
+    suggestions_tab, = st.tabs(["Suggestions"])
+
+    with suggestions_tab:
+        if st.session_state.used_context:
+            for idx, context in enumerate(st.session_state.used_context):
+                st.caption(context.get("description",
+                           "No description available"))
+                if context.get("image_url"):
+                    st.image(context["image_url"], width=250)
+                st.caption(f"**Price:** ${context.get('price', 'N/A')}")
+                st.divider()
+
+        else:
+            st.info("No suggestions yet.")
+
 
 if prompt := st.chat_input("Hello! How can I assist you today?"):
     st.session_state.messages.append({"role": "user", "content": prompt})
@@ -53,9 +77,14 @@ if prompt := st.chat_input("Hello! How can I assist you today?"):
         st.markdown(prompt)
 
     with st.chat_message("assistant"):
-        output = api_call(
+        state, output = api_call(
             "post", f"{config.API_URL}/api/rag", json={"query": prompt})
-        response_data = output[1]
-        answer = response_data["answer"]
+
+        answer = output.get(
+            "answer", "Sorry, I couldn't process your request.")
+        used_context = output.get("used_context", [])
+
+        st.session_state.used_context = used_context
         st.write(answer)
     st.session_state.messages.append({"role": "assistant", "content": answer})
+    st.rerun()
