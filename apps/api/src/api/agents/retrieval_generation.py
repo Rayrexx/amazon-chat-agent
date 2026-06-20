@@ -1,6 +1,6 @@
 import openai
 from qdrant_client import QdrantClient
-from qdrant_client.models import Filter, FieldCondition, MatchValue
+from qdrant_client.models import Filter, FieldCondition, MatchValue, Document, FusionQuery, Prefetch
 from langsmith import traceable, get_current_run_tree
 from pydantic import BaseModel, Field
 import instructor
@@ -50,8 +50,23 @@ def get_embedding(text, model="text-embedding-3-small"):
 def retrieve_data(query, qdrant_client, top_k=5):
     query_embedding = get_embedding(query)
     search_result = qdrant_client.query_points(
-        collection_name="Amazon-items-collection-00",
-        query=query_embedding,
+        collection_name="Amazon-items-collection-01-hybrid-search",
+        prefetch=[
+            Prefetch(
+                query=query_embedding,
+                using='text-embedding-3-small',
+                limit=20
+            ),
+            Prefetch(
+                query=Document(
+                    text=query,
+                    model="qdrant/bm25"),
+                using='bm25',
+                limit=20
+
+            )
+        ],
+        query=FusionQuery(fusion='rrf'),
         limit=top_k,
     )
 
@@ -177,9 +192,10 @@ def rag_pipeline_wrapper(question, top_k=5):
         dummy_vector = np.zeros(1536).tolist()
         for ref in result.get("references", []):
             payload = qdrant_client.query_points(
-                collection_name="Amazon-items-collection-00",
+                collection_name="Amazon-items-collection-01-hybrid-search",
                 query=dummy_vector,
                 limit=1,
+                using="text-embedding-3-small",
                 with_payload=True,
                 query_filter=Filter(
                     must=[
