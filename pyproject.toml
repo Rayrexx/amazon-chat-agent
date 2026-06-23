@@ -22,6 +22,7 @@ members = ["apps/api", "apps/chatbot_ui"]
 
 [dependency-groups]
 dev = [
+    "cohere>=7.0.4",
     "fastembed>=0.8.0",
     "langgraph>=1.2.0",
     "langsmith>=0.8.5",
